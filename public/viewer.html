@@ -4,29 +4,60 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
-    html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui}
-    .bar{padding:10px;background:#111;display:flex;gap:10px;align-items:center}
-    .panel{padding:12px;background:#0f0f18;border-bottom:1px solid #222;display:flex;gap:8px;flex-wrap:wrap}
+    *{box-sizing:border-box} html,body{margin:0;height:100%;background:#0a0a0f;color:#f0f0f8;font-family:'DM Sans',sans-serif}
+    .wrap{max-width:980px;margin:0 auto;padding:24px}
+    .hero h1{margin:0 0 6px;font-family:'Syne',sans-serif;font-size:38px}
+    .muted{color:#9696b3}
+    .card{margin-top:16px;background:#13131a;border:1px solid #2a2a38;border-radius:16px;overflow:hidden}
+    .head{padding:14px 18px;border-bottom:1px solid #2a2a38;display:flex;justify-content:space-between;align-items:center}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #2a2a38;background:#1c1c26;color:#9ea0bb;font-size:12px}
+    .body{padding:16px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input,button{padding:11px 12px;border-radius:10px;border:1px solid #333;background:#1a1a26;color:#fff}
+    button{cursor:pointer;border:0}
+    .btnPrimary{background:#7c6af7}.btnGhost{background:#1f1f1f;border:1px solid #333}
     .panel.hidden{display:none}
-    input{padding:10px;border-radius:8px;border:1px solid #333;background:#1a1a26;color:#fff}
-    button{padding:10px;border-radius:8px;border:1px solid #333;background:#1f1f1f;color:#fff;cursor:pointer}
-    #v{width:100vw;height:calc(100vh - 44px);background:#000;object-fit:contain}
-    .floating{position:fixed;right:10px;bottom:10px;display:flex;gap:8px;z-index:9}
-    .hidden{display:none !important}
+    #videoWrap{margin-top:14px;border:1px solid #2a2a38;border-radius:12px;background:#000;overflow:hidden}
+    #v{width:100%;aspect-ratio:16/9;display:block;object-fit:contain;background:#000}
+    .controls{margin-top:10px;display:flex;gap:8px}
+    .controls.hidden{display:none}
   </style>
 </head>
 <body>
-  <div class="bar"><b>Viewer</b><span id="s">Configura sala</span></div>
-  <div class="panel" id="panel">
-    <input id="room" placeholder="Nombre de sala" />
-    <input id="pin" placeholder="PIN (opcional)" />
-    <button id="join">Entrar</button>
-  </div>
-  <video id="v" autoplay playsinline muted></video>
-  <div class="floating hidden" id="controls">
-    <button id="fs">Pantalla completa</button>
-    <button id="leave">Desconectar</button>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Viewer</h1>
+      <div class="muted">Conéctate a una sala para ver la transmisión</div>
+    </div>
+
+    <div class="card">
+      <div class="head">
+        <strong>Receptor</strong>
+        <span class="pill" id="s">Configura sala</span>
+      </div>
+      <div class="body">
+        <div class="panel" id="panel">
+          <div class="row">
+            <input id="room" placeholder="Nombre de sala" />
+            <input id="pin" placeholder="PIN (opcional)" />
+            <button id="join" class="btnPrimary">Entrar</button>
+          </div>
+        </div>
+
+        <div id="videoWrap">
+          <video id="v" autoplay playsinline muted></video>
+        </div>
+
+        <div class="controls hidden" id="controls">
+          <button id="fs" class="btnGhost">Pantalla completa</button>
+          <button id="leave" class="btnGhost">Desconectar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -74,7 +105,7 @@
       const pin = pinInput.value.trim();
       if(!room){ s.textContent='Pon nombre de sala'; return; }
 
-      await disconnect();
+      await disconnect('Conectando...');
       pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
       pc.ontrack = async (e)=>{
         if (e.streams && e.streams[0]) {
@@ -83,22 +114,14 @@
           remoteStream.addTrack(e.track);
           v.srcObject = remoteStream;
         }
-        if (e.track) {
-          e.track.onunmute = async ()=>{ try{ await v.play(); }catch{} };
-        }
+        if (e.track) e.track.onunmute = async ()=>{ try{ await v.play(); }catch{} };
         try{ await v.play(); }catch{}
         s.textContent='Recibiendo stream...';
       };
-      pc.onconnectionstatechange = ()=>{
-        if (pc.connectionState === 'connected') s.textContent = 'Conectado';
-      };
+      pc.onconnectionstatechange = ()=>{ if (pc?.connectionState === 'connected') s.textContent = 'Conectado'; };
 
       channel = client.channel('signal-'+roomKey(room), { config:{ broadcast:{ self:true } } });
-
-      pc.onicecandidate = async (e)=>{
-        if(!e.candidate || !casterId) return;
-        await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'ice',candidate:e.candidate,pin}});
-      };
+      pc.onicecandidate = async (e)=>{ if(!e.candidate || !casterId) return; await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'ice',candidate:e.candidate,pin}}); };
 
       channel.on('broadcast',{event:'sig'}, async ({payload})=>{
         if(!payload || (payload.to!==viewerId && payload.to!=='all')) return;
@@ -114,35 +137,19 @@
           if (window.__joinTimer) { clearInterval(window.__joinTimer); window.__joinTimer = null; }
         }
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
-        if(payload.kind==='caster-stopped'){
-          await disconnect('Desconectado');
-          return;
-        }
+        if(payload.kind==='caster-stopped'){ await disconnect('Desconectado'); return; }
       });
 
-      async function announceJoin(){
-        await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:'caster',kind:'viewer-join',pin}});
-      }
-
-      await channel.subscribe(async (st)=>{
-        if(st==='SUBSCRIBED'){
-          s.textContent='Esperando emisor...';
-          await announceJoin();
-        }
-      });
-
+      const announceJoin = async ()=>{ await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:'caster',kind:'viewer-join',pin}}); };
+      await channel.subscribe(async (st)=>{ if(st==='SUBSCRIBED'){ s.textContent='Esperando emisor...'; await announceJoin(); }});
       window.__joinTimer && clearInterval(window.__joinTimer);
-      window.__joinTimer = setInterval(async ()=>{
-        if (!casterId) await announceJoin();
-      }, 2500);
+      window.__joinTimer = setInterval(async ()=>{ if (!casterId) await announceJoin(); }, 2500);
     };
 
-    leaveBtn.onclick = disconnect;
+    leaveBtn.onclick = ()=>disconnect('Desconectado');
     fs.onclick = async ()=>{ try{ await document.documentElement.requestFullscreen(); }catch{} };
 
-    if (roomInput.value) {
-      joinBtn.click();
-    }
+    if (roomInput.value) joinBtn.click();
   })();
   </script>
 </body>
