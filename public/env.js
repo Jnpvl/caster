@@ -1,0 +1,5 @@
+window.__ENV = {
+  SUPABASE_URL: "__SUPABASE_URL__",
+  SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
+  APP_NAME: "__APP_NAME__"
+};
