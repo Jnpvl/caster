@@ -22,7 +22,7 @@
     <input id="pin" placeholder="PIN (opcional)" />
     <button id="join">Entrar</button>
   </div>
-  <video id="v" autoplay playsinline></video>
+  <video id="v" autoplay playsinline muted></video>
   <div class="floating">
     <button id="fs">Pantalla completa</button>
     <button id="leave">Desconectar</button>
@@ -46,6 +46,8 @@
     const client = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
     const viewerId = crypto.randomUUID();
     let channel, pc, casterId;
+    const remoteStream = new MediaStream();
+    v.srcObject = remoteStream;
 
     const params = new URLSearchParams(location.search);
     if (params.get('room')) roomInput.value = params.get('room');
@@ -69,7 +71,14 @@
 
       await disconnect();
       pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
-      pc.ontrack = async (e)=>{ v.srcObject=e.streams[0]; try{await v.play();}catch{}; s.textContent='Recibiendo stream...'; };
+      pc.ontrack = async (e)=>{
+        if (e.track) remoteStream.addTrack(e.track);
+        try{ await v.play(); }catch{}
+        s.textContent='Recibiendo stream...';
+      };
+      pc.onconnectionstatechange = ()=>{
+        if (pc.connectionState === 'connected') s.textContent = 'Conectado';
+      };
 
       channel = client.channel('signal-'+roomKey(room), { config:{ broadcast:{ self:true } } });
 
