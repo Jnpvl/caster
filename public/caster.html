@@ -125,7 +125,7 @@ button{cursor:pointer;border:0}
 
   $('stop').onclick=async ()=>{
     if (channel) {
-      await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:'all',kind:'caster-stopped'}});
+      await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:'all',kind:'caster-stopped',ts:Date.now()}});
     }
     if(stream){stream.getTracks().forEach(t=>t.stop()); stream=null;}
     pcs.forEach(pc=>pc.close()); pcs.clear();

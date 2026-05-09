@@ -56,8 +56,9 @@
     function roomKey(room){ return (cfg.APP_NAME||'caster') + '-room-' + room; }
 
     async function disconnect(message='Desconectado'){
-      try{ if(channel) await channel.unsubscribe(); }catch{}
-      try{ if(pc) pc.close(); }catch{}
+      try{ if(channel){ await channel.unsubscribe(); channel = null; } }catch{}
+      try{ if(pc){ pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); pc = null; } }catch{}
+      try{ if(v.srcObject){ v.srcObject.getTracks().forEach(t=>t.stop()); } }catch{}
       v.srcObject = null;
       casterId = null;
       s.textContent = message;
@@ -96,7 +97,7 @@
       };
 
       channel.on('broadcast',{event:'sig'}, async ({payload})=>{
-        if(payload.to!==viewerId) return;
+        if(!payload || (payload.to!==viewerId && payload.to!=='all')) return;
         if(payload.kind==='denied'){ s.textContent='PIN incorrecto / acceso denegado'; panel.classList.remove('hidden'); return; }
         if(payload.kind==='offer'){
           casterId=payload.from;
@@ -109,6 +110,7 @@
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
         if(payload.kind==='caster-stopped'){
           await disconnect('Desconectado');
+          return;
         }
       });
 
