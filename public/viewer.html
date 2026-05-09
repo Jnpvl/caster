@@ -55,12 +55,12 @@
 
     function roomKey(room){ return (cfg.APP_NAME||'caster') + '-room-' + room; }
 
-    async function disconnect(){
+    async function disconnect(message='Desconectado'){
       try{ if(channel) await channel.unsubscribe(); }catch{}
       try{ if(pc) pc.close(); }catch{}
       v.srcObject = null;
       casterId = null;
-      s.textContent = 'Desconectado';
+      s.textContent = message;
       panel.classList.remove('hidden');
     }
 
@@ -108,8 +108,7 @@
         }
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
         if(payload.kind==='caster-stopped'){
-          await disconnect();
-          s.textContent='El emisor detuvo la transmisión';
+          await disconnect('Desconectado');
         }
       });
 
