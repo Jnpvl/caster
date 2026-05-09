@@ -5,6 +5,7 @@
   ],
   "rewrites": [
     { "source": "/caster", "destination": "/caster.html" },
-    { "source": "/viewer", "destination": "/viewer.html" }
+    { "source": "/viewer", "destination": "/viewer.html" },
+    { "source": "/api/env", "destination": "/api/env.js" }
   ]
 }

@@ -12,37 +12,83 @@
   </style>
 </head>
 <body>
-  <div class="bar"><b>Viewer</b><span id="s">Conectando...</span></div>
+  <div class="bar"><b>Viewer</b><span id="s">Cargando...</span></div>
   <video id="v" autoplay playsinline></video>
   <button id="fs">Pantalla completa</button>
-<script>
-const s = document.getElementById('s');
-const v = document.getElementById('v');
-const fs = document.getElementById('fs');
 
-const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
-const pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
-let casterId;
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+  (async()=>{
+    const s = document.getElementById('s');
+    const v = document.getElementById('v');
+    const fs = document.getElementById('fs');
 
-pc.ontrack = async (e)=>{ v.srcObject = e.streams[0]; try{await v.play();}catch{}; s.textContent='Recibiendo stream...'; };
-pc.onicecandidate = (e)=>{ if(e.candidate && casterId) ws.send(JSON.stringify({type:'ice',to:casterId,candidate:e.candidate})); };
+    const cfg = await fetch('/api/env').then(r=>r.json()).catch(()=>({}));
+    if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
+      s.textContent = 'Faltan variables Supabase en Vercel';
+      return;
+    }
 
-ws.onopen = ()=>{ s.textContent='Esperando emisor...'; ws.send(JSON.stringify({type:'viewer-join'})); };
-ws.onclose = ()=>{ s.textContent='Desconectado'; };
-ws.onmessage = async (ev)=>{
-  const m = JSON.parse(ev.data);
-  if(m.type==='offer'){
-    casterId = m.from;
-    await pc.setRemoteDescription(new RTCSessionDescription(m.sdp));
-    const ans = await pc.createAnswer();
-    await pc.setLocalDescription(ans);
-    ws.send(JSON.stringify({type:'answer',to:casterId,sdp:ans}));
-  }
-  if(m.type==='ice' && m.from===casterId && m.candidate){ try{ await pc.addIceCandidate(new RTCIceCandidate(m.candidate)); }catch{} }
-  if(m.type==='caster-left') s.textContent='El emisor se desconectó';
-};
+    const ROOM = (cfg.APP_NAME || 'caster') + '-room';
+    const viewerId = crypto.randomUUID();
+    const client = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    const pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
+    let casterId = null;
 
-fs.onclick = async ()=>{ try{ await document.documentElement.requestFullscreen(); }catch{} };
-</script>
+    pc.ontrack = async (e)=>{
+      v.srcObject = e.streams[0];
+      try{ await v.play(); }catch{}
+      s.textContent = 'Recibiendo stream...';
+    };
+
+    const channel = client.channel('signal-' + ROOM, { config: { broadcast: { self: true } } });
+
+    pc.onicecandidate = async (e)=>{
+      if (!e.candidate || !casterId) return;
+      await channel.send({
+        type:'broadcast', event:'sig',
+        payload:{ room:ROOM, from:viewerId, to:casterId, kind:'ice', candidate:e.candidate }
+      });
+    };
+
+    channel.on('broadcast', {event:'sig'}, async ({payload})=>{
+      if (payload.to !== viewerId) return;
+
+      if (payload.kind === 'offer') {
+        casterId = payload.from;
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        const ans = await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        await channel.send({
+          type:'broadcast', event:'sig',
+          payload:{ room:ROOM, from:viewerId, to:casterId, kind:'answer', sdp:ans }
+        });
+      }
+
+      if (payload.kind === 'ice' && payload.candidate) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch {}
+      }
+    });
+
+    await channel.subscribe(async (status)=>{
+      if (status === 'SUBSCRIBED') {
+        s.textContent = 'Esperando emisor...';
+        await channel.send({
+          type:'broadcast', event:'sig',
+          payload:{ room:ROOM, from:viewerId, to:'caster', kind:'viewer-join' }
+        });
+      }
+    });
+
+    setInterval(async ()=>{
+      await channel.send({
+        type:'broadcast', event:'sig',
+        payload:{ room:ROOM, from:viewerId, to:'caster', kind:'viewer-join' }
+      });
+    }, 3000);
+
+    fs.onclick = async ()=>{ try{ await document.documentElement.requestFullscreen(); }catch{} };
+  })();
+  </script>
 </body>
 </html>
