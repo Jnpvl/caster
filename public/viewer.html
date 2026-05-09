@@ -58,6 +58,7 @@
     function roomKey(room){ return (cfg.APP_NAME||'caster') + '-room-' + room; }
 
     async function disconnect(message='Desconectado'){
+      if (window.__joinTimer) { clearInterval(window.__joinTimer); window.__joinTimer = null; }
       try{ if(channel){ await channel.unsubscribe(); channel = null; } }catch{}
       try{ if(pc){ pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); pc = null; } }catch{}
       try{ if(v.srcObject){ v.srcObject.getTracks().forEach(t=>t.stop()); } }catch{}
@@ -110,6 +111,7 @@
           await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'answer',sdp:ans,pin}});
           panel.classList.add('hidden');
           controls.classList.remove('hidden');
+          if (window.__joinTimer) { clearInterval(window.__joinTimer); window.__joinTimer = null; }
         }
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
         if(payload.kind==='caster-stopped'){
@@ -118,12 +120,21 @@
         }
       });
 
+      async function announceJoin(){
+        await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:'caster',kind:'viewer-join',pin}});
+      }
+
       await channel.subscribe(async (st)=>{
         if(st==='SUBSCRIBED'){
           s.textContent='Esperando emisor...';
-          await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:'caster',kind:'viewer-join',pin}});
+          await announceJoin();
         }
       });
+
+      window.__joinTimer && clearInterval(window.__joinTimer);
+      window.__joinTimer = setInterval(async ()=>{
+        if (!casterId) await announceJoin();
+      }, 2500);
     };
 
     leaveBtn.onclick = disconnect;
