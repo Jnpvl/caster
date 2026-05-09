@@ -1,6 +1,8 @@
 {
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/caster", "destination": "/caster.html" }
+    { "source": "/", "destination": "/caster.html" },
+    { "source": "/caster", "destination": "/caster.html" },
+    { "source": "/viewer", "destination": "/index.html" }
   ]
 }
