@@ -123,7 +123,10 @@ button{cursor:pointer;border:0}
     }catch(e){log('Error: '+e.message)}
   };
 
-  $('stop').onclick=()=>{
+  $('stop').onclick=async ()=>{
+    if (channel) {
+      await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:'all',kind:'caster-stopped'}});
+    }
     if(stream){stream.getTracks().forEach(t=>t.stop()); stream=null;}
     pcs.forEach(pc=>pc.close()); pcs.clear();
     $('stop').classList.add('hidden');

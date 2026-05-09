@@ -107,6 +107,10 @@
           panel.classList.add('hidden');
         }
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
+        if(payload.kind==='caster-stopped'){
+          await disconnect();
+          s.textContent='El emisor detuvo la transmisión';
+        }
       });
 
       await channel.subscribe(async (st)=>{
