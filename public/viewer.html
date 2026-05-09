@@ -13,6 +13,7 @@
     button{padding:10px;border-radius:8px;border:1px solid #333;background:#1f1f1f;color:#fff;cursor:pointer}
     #v{width:100vw;height:calc(100vh - 44px);background:#000;object-fit:contain}
     .floating{position:fixed;right:10px;bottom:10px;display:flex;gap:8px;z-index:9}
+    .hidden{display:none !important}
   </style>
 </head>
 <body>
@@ -23,7 +24,7 @@
     <button id="join">Entrar</button>
   </div>
   <video id="v" autoplay playsinline muted></video>
-  <div class="floating">
+  <div class="floating hidden" id="controls">
     <button id="fs">Pantalla completa</button>
     <button id="leave">Desconectar</button>
   </div>
@@ -36,6 +37,7 @@
     const fs = document.getElementById('fs');
     const leaveBtn = document.getElementById('leave');
     const panel = document.getElementById('panel');
+    const controls = document.getElementById('controls');
     const roomInput = document.getElementById('room');
     const pinInput = document.getElementById('pin');
     const joinBtn = document.getElementById('join');
@@ -63,6 +65,7 @@
       casterId = null;
       s.textContent = message;
       panel.classList.remove('hidden');
+      controls.classList.add('hidden');
     }
 
     joinBtn.onclick = async ()=>{
@@ -106,6 +109,7 @@
           await pc.setLocalDescription(ans);
           await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'answer',sdp:ans,pin}});
           panel.classList.add('hidden');
+          controls.classList.remove('hidden');
         }
         if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
         if(payload.kind==='caster-stopped'){
