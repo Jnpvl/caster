@@ -1,7 +1,9 @@
 {
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/", "destination": "/caster", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/", "destination": "/caster.html" },
     { "source": "/caster", "destination": "/caster.html" },
     { "source": "/viewer", "destination": "/index.html" }
   ]
