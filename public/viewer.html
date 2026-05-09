@@ -47,6 +47,10 @@
     const viewerId = crypto.randomUUID();
     let channel, pc, casterId;
 
+    const params = new URLSearchParams(location.search);
+    if (params.get('room')) roomInput.value = params.get('room');
+    if (params.get('pin')) pinInput.value = params.get('pin');
+
     function roomKey(room){ return (cfg.APP_NAME||'caster') + '-room-' + room; }
 
     async function disconnect(){
@@ -98,6 +102,10 @@
 
     leaveBtn.onclick = disconnect;
     fs.onclick = async ()=>{ try{ await document.documentElement.requestFullscreen(); }catch{} };
+
+    if (roomInput.value) {
+      joinBtn.click();
+    }
   })();
   </script>
 </body>
