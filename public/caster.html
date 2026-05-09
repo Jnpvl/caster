@@ -1,134 +1,54 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Caster — Comparte tu pantalla al instante</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0a0f;--surface:#13131a;--surface2:#1c1c26;--border:#2a2a38;--accent:#7c6af7;--text:#f0f0f8;--muted:#8888a4;--danger:#e24b4a;--live:#1d9e75;--font-head:'Syne',sans-serif;--font-body:'DM Sans',sans-serif;--r:12px;}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh}
-nav{display:flex;align-items:center;justify-content:space-between;padding:20px 40px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(12px)}
-.logo{font-family:var(--font-head);font-size:22px;font-weight:800;display:flex;align-items:center;gap:8px}
-.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
-.app-section{padding:60px 40px;max-width:760px;margin:0 auto}
-.caster-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
-.caster-header{padding:24px 28px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.status-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--muted)}
-.status-pill.live{background:rgba(29,158,117,.12);border-color:rgba(29,158,117,.3);color:#4ed4a5}
-.status-pill.error{background:rgba(226,75,74,.12);border-color:rgba(226,75,74,.3);color:#f07070}
-.caster-body{padding:28px}
-.cast-btn{width:100%;padding:18px;border-radius:12px;border:none;cursor:pointer;font-family:var(--font-head);font-size:16px;font-weight:700;background:var(--accent);color:#fff}
-.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
-.stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
-.stat-val{font-family:var(--font-head);font-size:22px}
-.stat-lbl{font-size:11px;color:var(--muted)}
-.log-line{margin-top:16px;padding:10px 14px;border-radius:8px;font-size:12px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);font-family:monospace;min-height:36px}
-.viewer-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.viewer-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px}
-</style>
-</head>
-<body>
-<nav><div class="logo"><div class="logo-dot"></div>Caster</div></nav>
-<section class="app-section">
-  <div class="caster-card">
-    <div class="caster-header">
-      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">Sala en vivo</div>
-      <div class="status-pill" id="status-pill"><span id="status-text">Inactivo</span></div>
-    </div>
-    <div class="caster-body">
-      <button class="cast-btn" id="castBtn">Compartir pantalla</button>
-      <div class="stats-row">
-        <div class="stat"><div class="stat-val" id="viewerCount">0</div><div class="stat-lbl">Espectadores</div></div>
-        <div class="stat"><div class="stat-val" id="sessionTime">—</div><div class="stat-lbl">Tiempo</div></div>
-        <div class="stat"><div class="stat-val" id="qualityVal">—</div><div class="stat-lbl">Calidad</div></div>
-      </div>
-      <div style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)">
-        <div style="font-size:12px;color:var(--muted)">URL Viewer:</div>
-        <div id="viewerUrl" style="font-family:monospace;font-size:13px;word-break:break-all"></div>
-      </div>
-      <div class="viewer-list" id="viewerList"></div>
-      <div class="log-line" id="logLine">Listo.</div>
-    </div>
-  </div>
-</section>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
+<!doctype html><html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Caster</title><style>body{font-family:system-ui;background:#0b0b12;color:#fff;padding:20px}input,button{padding:10px;border-radius:8px;border:1px solid #333;background:#1a1a26;color:#fff}button{cursor:pointer;background:#6d5efc;border:0}.row{display:flex;gap:8px;flex-wrap:wrap}.url{margin:10px 0;padding:10px;background:#171723;border:1px solid #2a2a3d;border-radius:10px;font-family:monospace}#log{margin-top:12px;color:#bcbcd3}</style></head><body><h2>Caster</h2><div class="row"><input id="room" placeholder="Nombre de sala"/><input id="pin" placeholder="PIN opcional"/><button id="prepare">Preparar sala</button><button id="cast">Compartir pantalla</button></div><div class="url">Viewer URL: <span id="u">-</span></div><div id="log">Configura sala</div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
 (async()=>{
-  const $=id=>document.getElementById(id);
-  const log=t=>$('logLine').textContent=t;
-  const setStatus=(t,k='')=>{ $('status-text').textContent=t; $('status-pill').className='status-pill'+(k?' '+k:''); };
+ const $=id=>document.getElementById(id); const log=t=>$('log').textContent=t;
+ const cfg=await fetch('/api/env').then(r=>r.json()).catch(()=>({}));
+ if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY){log('Faltan variables Supabase');return;}
+ const client=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+ const casterId=crypto.randomUUID(); let stream=null; let channel=null; let room=''; let pin=''; const pcs=new Map();
+ const roomKey=r=>(cfg.APP_NAME||'caster')+'-room-'+r;
 
-  const cfg = await fetch('/api/env').then(r=>r.json()).catch(()=>({}));
-  if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){ log('Faltan variables Supabase en Vercel'); setStatus('Error','error'); return; }
+ async function setupChannel(){
+   if(channel) await channel.unsubscribe();
+   channel=client.channel('signal-'+roomKey(room),{config:{broadcast:{self:true}}});
+   channel.on('broadcast',{event:'sig'}, async ({payload})=>{
+     if(payload.to!==casterId && payload.to!=='caster') return;
+     if(pin && payload.pin!==pin){
+       if(payload.from) await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:payload.from,kind:'denied'}});
+       return;
+     }
+     if(payload.kind==='viewer-join'&&stream){
+       const id=payload.from; if(pcs.has(id)) return;
+       const pc=new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
+       pcs.set(id,pc); stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+       pc.onicecandidate=async e=>{if(e.candidate) await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:id,kind:'ice',candidate:e.candidate,pin}})};
+       const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+       await channel.send({type:'broadcast',event:'sig',payload:{from:casterId,to:id,kind:'offer',sdp:offer,pin}});
+       log('Viewer conectado: '+id.slice(0,8));
+     }
+     if(payload.kind==='answer'){ const pc=pcs.get(payload.from); if(pc) await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp)); }
+     if(payload.kind==='ice'){ const pc=pcs.get(payload.from); if(pc&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} } }
+   });
+   await channel.subscribe(()=>{});
+ }
 
-  const ROOM = (cfg.APP_NAME || 'caster') + '-room';
-  const casterId = crypto.randomUUID();
-  const client = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-  const channel = client.channel('signal-'+ROOM, { config:{ broadcast:{ self:true } } });
-  const pcs = new Map();
-  let stream = null, startedAt = 0, timer = null;
+ $('prepare').onclick=async ()=>{
+   room=$('room').value.trim(); pin=$('pin').value.trim();
+   if(!room){log('Pon nombre de sala');return;}
+   await setupChannel();
+   const q = pin ? ('?room='+encodeURIComponent(room)+'&pin='+encodeURIComponent(pin)) : ('?room='+encodeURIComponent(room));
+   $('u').textContent=location.origin+'/viewer'+q;
+   log('Sala lista: '+room+(pin?' (con PIN)':''));
+ };
 
-  $('viewerUrl').textContent = location.origin + '/viewer';
+ $('cast').onclick=async ()=>{
+   if(!room){log('Primero prepara sala');return;}
+   if(stream) return;
+   try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:30,max:60},width:{ideal:1280},height:{ideal:720}},audio:true});log('Transmitiendo en sala '+room);stream.getVideoTracks()[0].onended=()=>{stream=null;pcs.forEach(pc=>pc.close());pcs.clear();log('Transmisión detenida');};}
+   catch(e){log('Error: '+e.message)}
+ };
 
-  function addViewer(id){
-    if(document.querySelector('[data-v="'+id+'"]')) return;
-    const d=document.createElement('div'); d.className='viewer-item'; d.dataset.v=id; d.textContent='Viewer: '+id.slice(0,8);
-    $('viewerList').appendChild(d);
-    $('viewerCount').textContent = pcs.size;
-  }
-
-  channel.on('broadcast',{event:'sig'}, async ({payload})=>{
-    if(payload.to!==casterId && payload.to!=='caster') return;
-
-    if(payload.kind==='viewer-join' && stream){
-      const id = payload.from;
-      if(pcs.has(id)) return;
-      const pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
-      pcs.set(id, pc);
-      stream.getTracks().forEach(track=>pc.addTrack(track, stream));
-      pc.onicecandidate = async e=>{
-        if(!e.candidate) return;
-        await channel.send({type:'broadcast',event:'sig',payload:{room:ROOM,from:casterId,to:id,kind:'ice',candidate:e.candidate}});
-      };
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await channel.send({type:'broadcast',event:'sig',payload:{room:ROOM,from:casterId,to:id,kind:'offer',sdp:offer}});
-      addViewer(id);
-      $('viewerCount').textContent = pcs.size;
-      setStatus('En vivo · '+pcs.size+' espectador(es)','live');
-      log('Viewer conectado: '+id.slice(0,8));
-    }
-
-    if(payload.kind==='answer'){
-      const pc = pcs.get(payload.from);
-      if(pc) await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-    }
-
-    if(payload.kind==='ice' && payload.candidate){
-      const pc = pcs.get(payload.from);
-      if(pc){ try{ await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); }catch{} }
-    }
-  });
-
-  await channel.subscribe((st)=>{ if(st==='SUBSCRIBED') log('Canal listo: '+ROOM); });
-
-  $('castBtn').onclick = async ()=>{
-    if(stream) return;
-    try{
-      stream = await navigator.mediaDevices.getDisplayMedia({ video:{frameRate:{ideal:30,max:60},width:{ideal:1280},height:{ideal:720}}, audio:true });
-      $('qualityVal').textContent='30-60fps';
-      setStatus('En vivo · esperando...','live');
-      startedAt=Date.now();
-      timer=setInterval(()=>{ const s=Math.floor((Date.now()-startedAt)/1000); $('sessionTime').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); },1000);
-      log('Transmitiendo. Abre '+location.origin+'/viewer');
-      stream.getVideoTracks()[0].onended=()=>{ stream=null; pcs.forEach(pc=>pc.close()); pcs.clear(); $('viewerList').innerHTML=''; $('viewerCount').textContent='0'; $('qualityVal').textContent='—'; clearInterval(timer); $('sessionTime').textContent='—'; setStatus('Inactivo'); log('Transmisión detenida'); };
-    }catch(e){ setStatus('Error','error'); log('Error: '+e.message); }
-  };
+ const params=new URLSearchParams(location.search);
+ if(params.get('room')) $('room').value=params.get('room');
+ if(params.get('pin')) $('pin').value=params.get('pin');
 })();
-</script>
-</body>
-</html>
+</script></body></html>

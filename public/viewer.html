@@ -7,14 +7,21 @@
   <style>
     html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui}
     .bar{padding:10px;background:#111;display:flex;gap:10px;align-items:center}
-    #v{width:100vw;height:calc(100vh - 42px);background:#000;object-fit:contain}
-    button{position:fixed;right:10px;bottom:10px;padding:10px;border-radius:10px;border:1px solid #333;background:#1f1f1f;color:#fff}
+    .panel{padding:12px;background:#0f0f18;border-bottom:1px solid #222;display:flex;gap:8px;flex-wrap:wrap}
+    input{padding:10px;border-radius:8px;border:1px solid #333;background:#1a1a26;color:#fff}
+    button{padding:10px;border-radius:8px;border:1px solid #333;background:#1f1f1f;color:#fff;cursor:pointer}
+    #v{width:100vw;height:calc(100vh - 120px);background:#000;object-fit:contain}
   </style>
 </head>
 <body>
-  <div class="bar"><b>Viewer</b><span id="s">Cargando...</span></div>
+  <div class="bar"><b>Viewer</b><span id="s">Configura sala</span></div>
+  <div class="panel">
+    <input id="room" placeholder="Nombre de sala" />
+    <input id="pin" placeholder="PIN (opcional)" />
+    <button id="join">Entrar</button>
+    <button id="fs">Pantalla completa</button>
+  </div>
   <video id="v" autoplay playsinline></video>
-  <button id="fs">Pantalla completa</button>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
@@ -22,70 +29,57 @@
     const s = document.getElementById('s');
     const v = document.getElementById('v');
     const fs = document.getElementById('fs');
+    const roomInput = document.getElementById('room');
+    const pinInput = document.getElementById('pin');
+    const joinBtn = document.getElementById('join');
 
     const cfg = await fetch('/api/env').then(r=>r.json()).catch(()=>({}));
-    if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
-      s.textContent = 'Faltan variables Supabase en Vercel';
-      return;
-    }
+    if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){ s.textContent='Faltan variables Supabase'; return; }
 
-    const ROOM = (cfg.APP_NAME || 'caster') + '-room';
-    const viewerId = crypto.randomUUID();
     const client = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-    const pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
-    let casterId = null;
+    const viewerId = crypto.randomUUID();
+    let channel, pc, casterId;
 
-    pc.ontrack = async (e)=>{
-      v.srcObject = e.streams[0];
-      try{ await v.play(); }catch{}
-      s.textContent = 'Recibiendo stream...';
-    };
+    function roomKey(room){ return (cfg.APP_NAME||'caster') + '-room-' + room; }
 
-    const channel = client.channel('signal-' + ROOM, { config: { broadcast: { self: true } } });
+    joinBtn.onclick = async ()=>{
+      const room = roomInput.value.trim();
+      const pin = pinInput.value.trim();
+      if(!room){ s.textContent='Pon nombre de sala'; return; }
 
-    pc.onicecandidate = async (e)=>{
-      if (!e.candidate || !casterId) return;
-      await channel.send({
-        type:'broadcast', event:'sig',
-        payload:{ room:ROOM, from:viewerId, to:casterId, kind:'ice', candidate:e.candidate }
+      if(channel) await channel.unsubscribe();
+      if(pc) pc.close();
+
+      pc = new RTCPeerConnection({iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}]});
+      pc.ontrack = async (e)=>{ v.srcObject=e.streams[0]; try{await v.play();}catch{}; s.textContent='Recibiendo stream...'; };
+
+      channel = client.channel('signal-'+roomKey(room), { config:{ broadcast:{ self:true } } });
+
+      pc.onicecandidate = async (e)=>{
+        if(!e.candidate || !casterId) return;
+        await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'ice',candidate:e.candidate,pin}});
+      };
+
+      channel.on('broadcast',{event:'sig'}, async ({payload})=>{
+        if(payload.to!==viewerId) return;
+        if(payload.kind==='denied'){ s.textContent='PIN incorrecto / acceso denegado'; return; }
+        if(payload.kind==='offer'){
+          casterId=payload.from;
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          const ans=await pc.createAnswer();
+          await pc.setLocalDescription(ans);
+          await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:casterId,kind:'answer',sdp:ans,pin}});
+        }
+        if(payload.kind==='ice'&&payload.candidate){ try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));}catch{} }
+      });
+
+      await channel.subscribe(async (st)=>{
+        if(st==='SUBSCRIBED'){
+          s.textContent='Esperando emisor...';
+          await channel.send({type:'broadcast',event:'sig',payload:{from:viewerId,to:'caster',kind:'viewer-join',pin}});
+        }
       });
     };
-
-    channel.on('broadcast', {event:'sig'}, async ({payload})=>{
-      if (payload.to !== viewerId) return;
-
-      if (payload.kind === 'offer') {
-        casterId = payload.from;
-        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        const ans = await pc.createAnswer();
-        await pc.setLocalDescription(ans);
-        await channel.send({
-          type:'broadcast', event:'sig',
-          payload:{ room:ROOM, from:viewerId, to:casterId, kind:'answer', sdp:ans }
-        });
-      }
-
-      if (payload.kind === 'ice' && payload.candidate) {
-        try { await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch {}
-      }
-    });
-
-    await channel.subscribe(async (status)=>{
-      if (status === 'SUBSCRIBED') {
-        s.textContent = 'Esperando emisor...';
-        await channel.send({
-          type:'broadcast', event:'sig',
-          payload:{ room:ROOM, from:viewerId, to:'caster', kind:'viewer-join' }
-        });
-      }
-    });
-
-    setInterval(async ()=>{
-      await channel.send({
-        type:'broadcast', event:'sig',
-        payload:{ room:ROOM, from:viewerId, to:'caster', kind:'viewer-join' }
-      });
-    }, 3000);
 
     fs.onclick = async ()=>{ try{ await document.documentElement.requestFullscreen(); }catch{} };
   })();
